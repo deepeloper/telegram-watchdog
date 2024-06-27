@@ -23,7 +23,7 @@
   },
   "require": {
     "php": ">=8.0",
-    "deepeloper/telegram-watchdog": "^1.0",
+    "deepeloper/tunneled-webhooks": "^1.0",
     "deepeloper/lib-fs": "*"
   },
   "require-dev": {
