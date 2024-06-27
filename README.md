@@ -1,5 +1,12 @@
 # Telegram Watchdog Chat Bot
 
+[![Packagist version](https://img.shields.io/packagist/v/deepeloper/telegram-watchdog)](https://packagist.org/packages/deepeloper/telegram-watchdog)
+[![PHP from Packagist](https://img.shields.io/packagist/php-v/deepeloper/telegram-watchdog.svg)](http://php.net/)
+[![GitHub license](https://img.shields.io/github/license/deepeloper/telegram-watchdog.svg)](https://github.com/deepeloper/telegram-watchdog/blob/main/LICENSE)
+[![GitHub issues](https://img.shields.io/github/issues-raw/deepeloper/telegram-watchdog.svg)](https://github.com/deepeloper/telegram-watchdog/issues)
+[![Packagist](https://img.shields.io/packagist/dt/deepeloper/telegram-watchdog.svg)](https://packagist.org/packages/deepeloper/telegram-watchdog)
+
+
 [![Donation](https://img.shields.io/badge/Donation-Visa,%20MasterCard,%20Maestro,%20UnionPay,%20YooMoney,%20МИР-red)](https://yoomoney.ru/to/41001351141494)
 
 Allows common chat users to tag admins by simple command `!report` as reply to spam messages.
