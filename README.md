@@ -25,7 +25,7 @@ The bot is based on [Tunneled Webhooks](https://github.com/deepeloper/tunneled-w
 [![PHP 8.0](https://img.shields.io/badge/PHP->=8.0-%237A86B8)]()
 
 ## Installation
-`composer require deepeloper/telegram-watchdog`
+Clone project from repository (`git clone https://github.com/deepeloper/telegram-watchdog`) and run `composer install`.
 
 Copy &laquo;config.skeleton.php&raquo; to &laquo;config.php&raquo; and modify it:
 * &laquo;service/command&raquo; value to use at local PC;
