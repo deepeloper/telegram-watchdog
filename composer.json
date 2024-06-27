@@ -1,0 +1,42 @@
+{
+  "name": "deepeloper/telegram-watchdog",
+  "type": "project",
+  "description": "Telegram Watchdog Chat Bot",
+  "keywords": ["php", "telegram", "watchdog", "chat", "bot"],
+  "license": "MIT",
+  "homepage": "https://github.com/deepeloper/telegram-watchdog",
+  "authors": [
+    {
+      "name": "deepeloper",
+      "homepage": "https://github.com/deepeloper",
+      "role": "lead"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/deepeloper/telegram-watchdog/issues"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "allow-plugins": {
+      "symfony/thanks": false
+    }
+  },
+  "require": {
+    "php": ">=8.0",
+    "deepeloper/telegram-watchdog": "^1.0",
+    "deepeloper/lib-fs": "*"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "*",
+    "squizlabs/php_codesniffer": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "deepeloper\\TelegramWatchdog\\": "src"
+    }
+  },
+  "scripts": {
+    "phpcs": "phpcs --standard=PSR12",
+    "phpstan": "vendor/bin/phpstan -cbuild/config/phpstan.neon"
+  }
+}
