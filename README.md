@@ -3,7 +3,8 @@
 [![PHP 8.0](https://img.shields.io/badge/PHP->=8.0-%237A86B8)]()
 [![GitHub license](https://img.shields.io/github/license/deepeloper/telegram-watchdog.svg)](https://github.com/deepeloper/telegram-watchdog/blob/main/LICENSE)
 [![GitHub issues](https://img.shields.io/github/issues-raw/deepeloper/telegram-watchdog.svg)](https://github.com/deepeloper/telegram-watchdog/issues)
-![visitor badge](https://visitor-badge.laobi.icu/badge?page_id=deepeloper.telegram-watchdog)
+[![Views](https://views.whatilearened.today/views/github/deepeloper/telegram-watchdog.svg)]()
+[![Clones](https://img.shields.io/badge/dynamic/json?color=success&label=Clones&query=count&url=https://gist.githubusercontent.com/deepeloper/f08610a4386790ca473b7a48f5fcab32/raw/clone.json&logo=github)](https://github.com/deepeloper/telegram-watchdog)
 
 [![Donation](https://img.shields.io/badge/Donation-Visa,%20MasterCard,%20Maestro,%20UnionPay,%20YooMoney,%20МИР-red)](https://yoomoney.ru/to/41001351141494)
 
