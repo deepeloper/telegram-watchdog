@@ -15,6 +15,7 @@ use deepeloper\Lib\FileSystem\Logger;
 use deepeloper\TunneledWebhooks\Webhook\Handler\HandlerAbstract;
 use Telegram\Bot\Objects\Update as UpdateObject;
 use Telegram\Bot\Api;
+use Throwable;
 
 class Watchdog extends HandlerAbstract
 {
@@ -41,45 +42,70 @@ class Watchdog extends HandlerAbstract
 
     public function run(mixed $options = null): void
     {
-        $this->api = $this->io->getApi();
-        $this->update = $this->api->getWebhookUpdate();
+        try {
+            $this->api = $this->io->getApi();
+            $this->update = $this->api->getWebhookUpdate();
 
-        $this->log(sprintf(
-            "update:\n%s\n",
-            var_export($this->update, true),
-        ));
-        $this->log(sprintf(
-            "getMe():\n%s\n",
-            var_export($this->api->getMe(), true),
-        ));
+//            $this->log(sprintf(
+//                "update:\n%s\n",
+//                var_export($this->update, true),
+//            ));
+//            $this->log(sprintf(
+//                "getMe():\n%s\n",
+//                var_export($this->api->getMe(), true),
+//            ));
 
-        match($this->update->objectType()) {
-            "message" => $this->processMessage(),
-            "my_chat_member" => $this->processChatManipulation(),
-        };
+            switch ($this->update->objectType()) {
+                case "message":
+                    $this->processMessage();
+                    break;
+
+//            case "my_chat_member":
+//                $this->processChatManipulation();
+//                break;
+            }
+        } catch (Throwable $exception) {
+            $this->log(sprintf(
+                "%s, %d\n%s\n%s\n",
+                $exception->getFile(),
+                $exception->getLine(),
+                $exception->getMessage(),
+                $exception->getTraceAsString(),
+            ));
+            return;
+        }
     }
 
     protected function processMessage(): void
     {
         // Skip updates having no message or messages from bots.
-        if (!isset($this->update->message) || $this->update->message->from->is_bot) {
+        if ($this->update->message->from->is_bot) {
             return;
         }
 
-        $this->log(sprintf(
-            "getChat():\n%s\n",
-            var_export($this->api->getChat(['chat_id' => $this->update->message->chat->id]), true),
-        ));
+//        $this->log(sprintf(
+//            "getChat():\n%s\n",
+//            var_export($this->api->getChat(['chat_id' => $this->update->message->chat->id]), true),
+//        ));
+//        $this->log(sprintf(
+//            "chatType:\n%s\n",
+//            var_export($this->update->message->chat->type, true),
+//        ));
 
-        match($this->update->message->chat->type) {
-            "supergroup" => $this->processSupergroup(),
-//            "private" => $this->processPrivateChat(),
-        };
+        switch ($this->update->message->chat->type) {
+            case "supergroup":
+                $this->processSupergroup();
+                break;
+
+//            case "private":
+//                $this->processPrivateChat();
+//                break;
+        }
     }
 
-    protected function processChatManipulation(): void
-    {
-    }
+//    protected function processChatManipulation(): void
+//    {
+//    }
 
     protected function processSupergroup(): void
     {
@@ -90,50 +116,49 @@ class Watchdog extends HandlerAbstract
             if ($admin->user->id !== $this->botId) {
                 $this->admins[$admin->user->id] = "@" . $admin->user->username;
             } else {
-                $this->log(sprintf(
-                    "bot:\n%s\n",
-                    var_export($admin, true),
-                ));
+//                $this->log(sprintf(
+//                    "admin:\n%s\n",
+//                    var_export($admin, true),
+//                ));
 
                 // Check bot permissions.
                 $botIsAdmin =
                     $admin->can_manage_chat && $admin->can_delete_messages && $admin->can_restrict_members;
             }
         }
-        if (!$botIsAdmin) {
-            return;
-        }
-
         if (isset($this->admins[$this->update->message->from->id])) {
-            $this->processAsChatAdmin();
+            $this->processMessageFromChatAdmin($botIsAdmin);
         } else {
-            $this->processAsCommonChatUser();
+            $this->processMessageFromCommonChatUser();
         }
     }
 
-/*
-    protected function processPrivateChat(): void
-    {
-        if (!in_array($this->update->message->from->id, $this->config['owners'])) {
-            return;
-        }
-    }
-*/
+//    protected function processPrivateChat(): void
+//    {
+//        if (!in_array($this->update->message->from->id, $this->config['owners'])) {
+//            return;
+//        }
+//    }
 
-    protected function processAsChatAdmin(): void
+    protected function processMessageFromChatAdmin(bool $botIsAdmin): void
     {
         if ("!ping" === $this->update->message->text) {
-            $this->api->sendMessage([
+            $message = [
                 'chat_id' => $this->update->message->chat->id,
-                'disable_notification' => true,
-                'protect_content' => true,
                 'reply_to_message_id' => $this->update->message->message_id,
                 'text' => "!pong",
-            ]);
+            ];
+            if ($botIsAdmin) {
+                $message += [
+                    'disable_notification' => true,
+                    'protect_content' => true,
+                ];
+            }
+            $this->api->sendMessage($message);
             return;
         }
 
-        if (!isset($this->update->message->reply_to_message)) {
+        if (!$botIsAdmin || !isset($this->update->message->reply_to_message)) {
             return;
         }
 
@@ -204,7 +229,7 @@ class Watchdog extends HandlerAbstract
         ]);
     }
 
-    protected function processAsCommonChatUser(): void
+    protected function processMessageFromCommonChatUser(): void
     {
         if (
             !isset($this->update->message->reply_to_message) ||
