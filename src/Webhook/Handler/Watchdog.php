@@ -129,7 +129,7 @@ class Watchdog extends HandlerAbstract
         if (isset($this->admins[$this->update->message->from->id])) {
             $this->processMessageFromChatAdmin($botIsAdmin);
         } else {
-            $this->processMessageFromCommonChatUser();
+            $this->processMessageFromCommonChatUser($botIsAdmin);
         }
     }
 
@@ -229,7 +229,7 @@ class Watchdog extends HandlerAbstract
         ]);
     }
 
-    protected function processMessageFromCommonChatUser(): void
+    protected function processMessageFromCommonChatUser(bool $botIsAdmin): void
     {
         if (
             !isset($this->update->message->reply_to_message) ||
@@ -239,8 +239,10 @@ class Watchdog extends HandlerAbstract
         }
         $admins = $this->admins + [$this->botId => true];
         if (isset($admins[$this->update->message->reply_to_message->from->id])) {
-            // Cannot manipulate with bot and admins.
-            $this->deleteLastMessage();
+            if ($botIsAdmin) {
+                // Cannot manipulate with bot and admins.
+                $this->deleteLastMessage();
+            }
             return;
         }
 
