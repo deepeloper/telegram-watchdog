@@ -39,6 +39,9 @@ return [
                 // Modify token here:
                 'token' => "TOKEN",
 
+                'commandPrefix' => ".",
+                'tagChatCreator' => true,
+
                 // Optional section.
                 // See https://github.com/deepeloper/lib-fs?tab=readme-ov-file#logging-functionality-supporting-files-rotation.
 /*
