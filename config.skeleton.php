@@ -41,6 +41,7 @@ return [
 
                 'commandPrefix' => ".",
                 'tagChatCreator' => true,
+                'woofDelay' => 30, // In seconds, 30 minimum.
 
                 // Optional section.
                 // See https://github.com/deepeloper/lib-fs?tab=readme-ov-file#logging-functionality-supporting-files-rotation.
