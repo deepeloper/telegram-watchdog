@@ -13,8 +13,8 @@ namespace deepeloper\TelegramWatchdog\Webhook\Handler;
 
 use deepeloper\Lib\FileSystem\Logger;
 use deepeloper\TunneledWebhooks\Webhook\Handler\HandlerAbstract;
-use Telegram\Bot\Objects\Update as UpdateObject;
 use Telegram\Bot\Api;
+use Telegram\Bot\Objects\Update as UpdateObject;
 use Throwable;
 
 class Watchdog extends HandlerAbstract
@@ -31,6 +31,8 @@ class Watchdog extends HandlerAbstract
 
     protected array $admins = [];
 
+    protected array $permissions = [];
+
     public function __construct(array $config)
     {
         $this->config = $config;
@@ -46,11 +48,11 @@ class Watchdog extends HandlerAbstract
             $this->api = $this->io->getApi();
             $this->update = $this->api->getWebhookUpdate();
 
-//            $this->log(sprintf(
+//            $this->log(\sprintf(
 //                "update:\n%s\n",
 //                var_export($this->update, true),
 //            ));
-//            $this->log(sprintf(
+//            $this->log(\sprintf(
 //                "getMe():\n%s\n",
 //                var_export($this->api->getMe(), true),
 //            ));
@@ -65,29 +67,30 @@ class Watchdog extends HandlerAbstract
 //                break;
             }
         } catch (Throwable $exception) {
-            $this->log(sprintf(
+            $this->log(\sprintf(
                 "%s, %d\n%s\n%s\n",
                 $exception->getFile(),
                 $exception->getLine(),
                 $exception->getMessage(),
                 $exception->getTraceAsString(),
             ));
-            return;
         }
     }
 
     protected function processMessage(): void
     {
-        // Skip updates having no message or messages from bots.
+        // Skip updates having messages from bots.
         if ($this->update->message->from->is_bot) {
             return;
         }
 
-//        $this->log(sprintf(
+        $chat = $this->api->getChat(['chat_id' => $this->update->message->chat->id]);
+        $this->fillPermissions($chat->permissions, ["can_send_messages"]);
+//        $this->log(\sprintf(
 //            "getChat():\n%s\n",
-//            var_export($this->api->getChat(['chat_id' => $this->update->message->chat->id]), true),
+//            var_export($chat, true),
 //        ));
-//        $this->log(sprintf(
+//        $this->log(\sprintf(
 //            "chatType:\n%s\n",
 //            var_export($this->update->message->chat->type, true),
 //        ));
@@ -111,25 +114,35 @@ class Watchdog extends HandlerAbstract
     {
         $this->botId = $this->api->getMe()->id;
         $admins = $this->api->getChatAdministrators(['chat_id' => $this->update->message->chat->id]);
-        $botIsAdmin = false;
+
+//        $this->log(\sprintf(
+//            "\$admins:\n%s\n",
+//            var_export($admins, true),
+//        ));
+
         foreach ($admins as $admin) {
             if ($admin->user->id !== $this->botId) {
                 $this->admins[$admin->user->id] = "@" . $admin->user->username;
             } else {
-//                $this->log(sprintf(
-//                    "admin:\n%s\n",
+//                $this->log(\sprintf(
+//                    "bot:\n%s\n",
 //                    var_export($admin, true),
 //                ));
 
-                // Check bot permissions.
-                $botIsAdmin =
-                    $admin->can_manage_chat && $admin->can_delete_messages && $admin->can_restrict_members;
+                // Check bot permissions.       // report spam message
+                $this->fillPermissions($admin, ["can_manage_chat", "can_delete_messages", "can_restrict_members"]);
             }
         }
+
+//        $this->log(\sprintf(
+//            "\$permissions:\n%s\n",
+//            var_export($this->permissions, true),
+//        ));
+
         if (isset($this->admins[$this->update->message->from->id])) {
-            $this->processMessageFromChatAdmin($botIsAdmin);
+            $this->processMessageFromChatAdmin();
         } else {
-            $this->processMessageFromCommonChatUser($botIsAdmin);
+            $this->processMessageFromCommonChatUser();
         }
     }
 
@@ -140,40 +153,28 @@ class Watchdog extends HandlerAbstract
 //        }
 //    }
 
-    protected function processMessageFromChatAdmin(bool $botIsAdmin): void
+    protected function processMessageFromChatAdmin(): void
     {
-        if ("!ping" === $this->update->message->text) {
-            $message = [
-                'chat_id' => $this->update->message->chat->id,
-                'reply_to_message_id' => $this->update->message->message_id,
-                'text' => "!pong",
-            ];
-            if ($botIsAdmin) {
-                $message += [
-                    'disable_notification' => true,
-                    'protect_content' => true,
-                ];
-            }
-            $this->api->sendMessage($message);
+        if ("/ping" === $this->update->message->text) {
+            $this->sendMessage("/pong");
             return;
         }
 
-        if (!$botIsAdmin || !isset($this->update->message->reply_to_message)) {
+        if (empty($this->permissions['can_restrict_members']) || !isset($this->update->message->reply_to_message)) {
             return;
         }
 
         $userId = $this->update->message->reply_to_message->from->id;
         if ($userId === $this->botId || isset($this->admins[$userId])) {
-            // Cannot manipulate with bot and admins.
-            $this->deleteLastMessage();
+            $this->sendMessage("Cannot affect admins or bot.");
             return;
         }
 
         $period = null;
         $commands = ["ban+", "ban", "mute", "woof"];
         foreach ($commands as $command) {
-            if (str_starts_with($this->update->message->text, "!$command")) {
-                $period = substr($this->update->message->text, strlen($command) + 1);
+            if (\str_starts_with($this->update->message->text, "/$command")) {
+                $period = \substr($this->update->message->text, strlen($command) + 1);
                 break;
             }
         }
@@ -182,111 +183,150 @@ class Watchdog extends HandlerAbstract
             return;
         }
 
-        if (str_contains($period, "*")) {
+//        $this->log("\$command: '$command', \$period: $period");
+
+        if (\str_contains($period, "*")) {
             $multipliers = explode("*", $period);
             $period = 1;
-            array_walk($multipliers, function ($multiplier) use (&$period) {
+            \array_walk($multipliers, function ($multiplier) use (&$period) {
                 $period = $period * (int)$multiplier;
             });
         } else {
             $period = (int)$period;
         }
 
-        $untilDate = time() + $period * 60;
+        $untilDate = \time() + $period * 60;
+
+//        $this->log(\sprintf(
+//            "\$calculatedPeriod: %d, %s",
+//            $period,
+//            \date("Y-m-d H:i:s", $untilDate),
+//        ));
+
+        $message = "";
+        $args = [$this->update->message->reply_to_message->from->username];
+
+        if (!$this->checkPermission("can_restrict_members")) {
+            return;
+        }
 
         switch ($command) {
             case "ban+":
-                $this->affectBan($untilDate, ['revoke_messages' => true]);
-                break;
             case "ban":
-                $this->affectBan($untilDate, ['revoke_messages' => false]);
+                if (!$this->checkPermission("can_restrict_members")) {
+                    return;
+                }
+
+                $this->affectToBan($untilDate, ['revoke_messages' => "ban" === $command]);
+                if ($period > 0) {
+                    $message = "@%s banned (%d minutes).";
+                    $args[] = $period;
+                } else {
+                    $message = "@%s banned.";
+                }
                 break;
+
             case "mute":
-                $this->affectSendingMessage($untilDate, false);
+                if (!$this->checkPermission("can_restrict_members")) {
+                    return;
+                }
+
+                $this->affectToSendingMessage($untilDate, false);
+                if ($period > 0) {
+                    $message = "@%s muted (%d minutes).";
+                    $args[] = $period;
+                } else {
+                    $message = "@%s muted.";
+                }
                 break;
+
             case "woof":
-                $this->affectSendingMessage($untilDate, true);
-                break;
+                $this->affectToSendingMessage($untilDate, true);
+                $message = "@%s allowed to write messages.";
         }
 
-        $this->api->sendMessage([
-            'chat_id' => $this->update->message->chat->id,
-            'disable_notification' => true,
-            'protect_content' => true,
-            'reply_to_message_id' => $this->update->message->message_id,
-            'text' => 0 !== $period
-                ? sprintf(
-                    "%s (%d minutes) for @%s",
-                    $command,
-                    $period,
-                    $this->update->message->reply_to_message->from->username,
-                )
-                : sprintf(
-                    "%s for @%s",
-                    $command,
-                    $this->update->message->reply_to_message->from->username,
-                ),
-        ]);
+        $this->sendMessage(\vsprintf($message, $args));
     }
 
-    protected function processMessageFromCommonChatUser(bool $botIsAdmin): void
+    protected function processMessageFromCommonChatUser(): void
     {
         if (
             !isset($this->update->message->reply_to_message) ||
-            "!report" !== $this->update->message->text
+            "/report" !== $this->update->message->text
         ) {
             return;
         }
         $admins = $this->admins + [$this->botId => true];
         if (isset($admins[$this->update->message->reply_to_message->from->id])) {
-            if ($botIsAdmin) {
-                // Cannot manipulate with bot and admins.
-                $this->deleteLastMessage();
-            }
+            $this->sendMessage("Cannot report about admins or bot.");
             return;
         }
 
         // Tag admins.
-        $this->api->sendMessage([
-            'chat_id' => $this->update->message->chat->id,
-            'protect_content' => true,
-            'reply_to_message_id' => $this->update->message->reply_to_message->message_id,
-            'text' => implode(", ", array_values($this->admins)),
-        ]);
+        $this->sendMessage(\implode(", ", \array_values($this->admins)), true);
     }
 
-    protected function affectBan(int $untilDate, array $params = []): void
+    protected function fillPermissions(mixed $source, array $permissions): void
     {
-        $this->api->banChatMember([
-            'chat_id' => $this->update->message->chat->id,
-            'user_id' => $this->update->message->reply_to_message->from->id,
-            'until_date' => $untilDate,
-        ] + $params);
+        foreach ($permissions as $permission) {
+            $this->permissions[$permission] = $source->$permission;
+        }
     }
 
-    protected function affectSendingMessage(int $untilDate, bool $allow): void
+    protected function checkPermission(string $permission): bool
     {
-        $this->api->restrictChatMember([
-            'chat_id' => $this->update->message->chat->id,
-            'user_id' => $this->update->message->reply_to_message->from->id,
-            'permissions' => ['can_send_messages' => $allow],
-            'until_date' => $untilDate,
-        ]);
+        if (empty($this->permissions[$permission])) {
+            $this->sendMessage("Not enough permissions.");
+            return false;
+        }
+
+        return true;
     }
 
-    protected function deleteLastMessage(): void
+    protected function sendMessage(string $message, ?bool $isReport = false): void
     {
-        $this->api->deleteMessage([
-            'chat_id' => $this->update->message->chat->id,
-            'message_id' => $this->update->message->message_id,
-        ]);
+        if (!empty($this->permissions['can_send_messages'])) {
+            $this->api->sendMessage([
+                'allow_sending_without_reply' => true,
+                'chat_id' => $this->update->message->chat->id,
+                'disable_notification' => !$isReport,
+                'protect_content' => true,
+                'reply_to_message_id' => $isReport
+                    ? $this->update->message->reply_to_message->message_id
+                    : $this->update->message->message_id,
+                'text' => $message,
+            ]);
+        }
+    }
+
+    protected function affectToBan(int $untilDate, array $params = []): void
+    {
+        if ($this->checkPermission("can_restrict_members")) {
+            $this->api->banChatMember([
+                    'chat_id' => $this->update->message->chat->id,
+                    'user_id' => $this->update->message->reply_to_message->from->id,
+                    'until_date' => $untilDate,
+                ] + $params);
+        }
+    }
+
+    protected function affectToSendingMessage(int $untilDate, bool $allow): void
+    {
+        if ($this->checkPermission("can_restrict_members")) {
+            $this->api->restrictChatMember([
+                'chat_id' => $this->update->message->chat->id,
+                'user_id' => $this->update->message->reply_to_message->from->id,
+                'permissions' => ['can_send_messages' => $allow],
+                'until_date' => $untilDate,
+            ]);
+        }
     }
 
     protected function log(string $message): void
     {
-        $this->logger?->log(sprintf(
+        $this->logger?->log(\sprintf(
             "[ %s ] %s\n",
-            date("Y-m-d H:i:s"),
+            \date("Y-m-d H:i:s"),
             $message,
         ));
     }

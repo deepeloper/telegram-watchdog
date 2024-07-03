@@ -10,11 +10,11 @@
 
 Allows common chat users to tag admins by simple command `!report` as reply to spam messages.
 
-Chat administrators can use following commands as reply to messages:
-* `!ban+[ period]` - ban replied user and revoke messages;
-* `!ban [ period]` - ban replied user and don't revoke messages;
-* `!mute[ period]` - mute replied user;
-* `!woof` - allow to chat replied user;
+Chat administrators can use following commands as reply to messages (if the bot has admin permissions):
+* `/ban+[ period]` - ban replied user and revoke messages;
+* `/ban [ period]` - ban replied user and don't revoke messages;
+* `/mute[ period]` - mute replied user;
+* `/woof` - allow to chat replied user;
 
 Also chat administrators can send `!ping` check if the bot is alive.
 
