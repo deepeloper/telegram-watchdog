@@ -27,4 +27,4 @@ Copy &laquo;config.skeleton.php&raquo; to &laquo;config.php&raquo; and modify it
 * &laquo;service/command&raquo; value to use at local PC;
 * &laquo;webhook/Telegram/Watchdog/token&raquo; value ([register Telegram bot](https://core.telegram.org/bots) to receive bot auth token).
 
-Invite your bot to chats and set admin permissions.
+Invite your bot to chats and optionally set admin permissions.
