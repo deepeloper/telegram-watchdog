@@ -13,12 +13,15 @@ namespace deepeloper\TelegramWatchdog\Webhook\Handler;
 
 use deepeloper\Lib\FileSystem\Logger;
 use deepeloper\TunneledWebhooks\Webhook\Handler\HandlerAbstract;
+use stdClass;
 use Telegram\Bot\Api;
 use Telegram\Bot\Objects\Update as UpdateObject;
 use Throwable;
 
 class Watchdog extends HandlerAbstract
 {
+    public const VERSION = "1.0.1";
+
     protected array $config;
 
     protected ?Logger $logger = null;
@@ -166,9 +169,22 @@ class Watchdog extends HandlerAbstract
 
     protected function processMessageFromChatAdmin(): void
     {
-        $prefix = $this->config['commandPrefix'];
-        if ($prefix . "ping" === $this->update->message->text) {
-            $this->sendMessage($prefix . "pong");
+        if ($this->config['commandPrefix'] . "ping" === $this->update->message->text) {
+            $scope = json_decode(file_get_contents(__DIR__ . "/../../../composer.json"), true);
+            $this->sendMessage(
+                \str_replace(".", "\\.", \sprintf(
+                    "[%s v%s](%s/tree/%s)",
+                    $scope['description'],
+                    self::VERSION,
+                    $scope['homepage'],
+                    self::VERSION,
+                )),
+                [
+                    'parse_mode' => "MarkdownV2",
+//                    'reply_to_message_id' => -1,
+                    'disable_web_page_preview' => true,
+                ],
+            );
             return;
         }
 
@@ -310,17 +326,20 @@ class Watchdog extends HandlerAbstract
         return true;
     }
 
-    protected function sendMessage(string $message, ?array $params = []): void
+    protected function sendMessage(?string $message = "", ?array $params = []): void
     {
         if (!empty($this->permissions['can_send_messages'])) {
-            $this->api->sendMessage($params + [
+            $params += [
                 'allow_sending_without_reply' => true,
                 'chat_id' => $this->update->message->chat->id,
                 'disable_notification' => true,
                 'protect_content' => true,
                 'reply_to_message_id' => $this->update->message->message_id,
-                'text' => $message,
-            ]);
+            ];
+            if ("" !== $message) {
+                $params += ['text' => $message];
+            }
+            $this->api->sendMessage($params);
         }
     }
 
