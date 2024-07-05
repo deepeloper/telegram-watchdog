@@ -25,6 +25,10 @@ Clone project from repository (`git clone https://github.com/deepeloper/telegram
 
 Copy &laquo;config.skeleton.php&raquo; to &laquo;config.php&raquo; and modify it:
 * &laquo;service/command&raquo; value to use at local PC;
-* &laquo;webhook/Telegram/Watchdog/token&raquo; value ([register Telegram bot](https://core.telegram.org/bots) to receive bot auth token).
+* &laquo;webhook/Telegram/Watchdog/token&raquo; value ([register Telegram bot](https://core.telegram.org/bots) to receive bot auth token);
+* also you can specify:
+  * bot's command prefix (&laquo;webhook/Telegram/Watchdog/commandPrefix&raquo;, "." by default);
+  * whether to tag chat creator when common chat user replying by `.report` (&laquo;webhook/Telegram/Watchdog/tagChatCreator&raquo;);
+  * delay for `.woof` command execution  
 
 Invite your bot to chats and optionally set admin permissions.

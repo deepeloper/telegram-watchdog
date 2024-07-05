@@ -13,7 +13,6 @@ namespace deepeloper\TelegramWatchdog\Webhook\Handler;
 
 use deepeloper\Lib\FileSystem\Logger;
 use deepeloper\TunneledWebhooks\Webhook\Handler\HandlerAbstract;
-use stdClass;
 use Telegram\Bot\Api;
 use Telegram\Bot\Objects\Update as UpdateObject;
 use Throwable;
@@ -169,7 +168,8 @@ class Watchdog extends HandlerAbstract
 
     protected function processMessageFromChatAdmin(): void
     {
-        if ($this->config['commandPrefix'] . "ping" === $this->update->message->text) {
+        $commandPrefix = $this->config['commandPrefix'];
+        if ($commandPrefix . "ping" === $this->update->message->text) {
             $scope = json_decode(file_get_contents(__DIR__ . "/../../../composer.json"), true);
             $this->sendMessage(
                 \str_replace(".", "\\.", \sprintf(
@@ -181,7 +181,7 @@ class Watchdog extends HandlerAbstract
                 )),
                 [
                     'parse_mode' => "MarkdownV2",
-//                    'reply_to_message_id' => -1,
+                    'reply_to_message_id' => -1,
                     'disable_web_page_preview' => true,
                 ],
             );
@@ -201,8 +201,8 @@ class Watchdog extends HandlerAbstract
         $period = null;
         $commands = ["ban+", "ban", "mute", "woof"];
         foreach ($commands as $command) {
-            if (\str_starts_with($this->update->message->text, "$prefix$command")) {
-                $period = \substr($this->update->message->text, strlen($command) + strlen($prefix));
+            if (\str_starts_with($this->update->message->text, "$commandPrefix$command")) {
+                $period = \substr($this->update->message->text, strlen($command) + strlen($commandPrefix));
                 break;
             }
         }
