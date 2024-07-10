@@ -10,13 +10,15 @@
 
 Allows common chat users to tag admins by simple command `.report` as reply to spam messages.
 
-Chat administrators can use following commands as reply to messages (if the bot has admin permissions):
+Chat administrators can use following commands as reply to messages if the bot hasn't admin permissions:
+* `.ping` - to check if the bot is alive and to see its version;
+* `.admin` - to refresh bot admin list.
+
+Chat administrators can use following commands as reply to messages if the bot has admin permissions:
 * `.ban+[ period (in minutes, may be specified as 60*24*10 as 10 days)]` - ban replied user and revoke messages;
 * `.ban [ period]` - ban replied user and don't revoke messages;
 * `.mute[ period]` - mute replied user;
 * `.woof` - allow to chat replied user;
-
-Also chat administrators can send `.ping` to check if the bot is alive.
 
 The bot is based on [Tunneled Webhooks](https://github.com/deepeloper/tunneled-webhooks), so can be used at local PC or server.  
 

@@ -39,6 +39,8 @@ return [
                 // Modify token here:
                 'token' => "TOKEN",
 
+                'cachePath' => "/path/to/cache/file.php",
+
                 'commandPrefix' => ".",
                 'tagChatCreator' => true,
                 'woofDelay' => 30, // In seconds, 30 minimum.
@@ -47,7 +49,7 @@ return [
                 // See https://github.com/deepeloper/lib-fs?tab=readme-ov-file#logging-functionality-supporting-files-rotation.
 /*
                 'logger' => [
-                    'path'    => "./logs/bot.watchdog.log",
+                    'path'    => "/path/to/log/file",
                     'rotation' => 1,
                 ],
 */

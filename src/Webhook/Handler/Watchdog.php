@@ -19,28 +19,27 @@ use Throwable;
 
 class Watchdog extends HandlerAbstract
 {
-    public const VERSION = "1.0.1";
+    public const VERSION = "1.1.0";
+
+    protected const PROCESSING_TYPES = ["message", "my_chat_member"];
 
     protected array $config;
 
     protected ?Logger $logger = null;
 
+    protected array $cache = [];
+
+    protected array $loadedCache;
+
     protected Api $api;
 
     protected UpdateObject $update;
 
-    protected int $botId;
-
-    protected ?int $chatCreatorId = null;
-
-    protected array $admins = [];
-
-    protected array $permissions = [];
+    protected int $chatId;
 
     public function __construct(array $config)
     {
         $this->config = $config;
-
         if (isset($config['logger'])) {
             $this->logger = new Logger($config['logger']);
         }
@@ -50,10 +49,13 @@ class Watchdog extends HandlerAbstract
     {
         try {
             $this->api = $this->io->getApi();
+            $this->loadCache();
             $this->update = $this->api->getWebhookUpdate();
+            $type = $this->update->objectType();
 
 //            $this->log(\sprintf(
-//                "update:\n%s\n",
+//                "update (%s):\n%s\n",
+//                $type,
 //                var_export($this->update, true),
 //            ));
 //            $this->log(\sprintf(
@@ -61,14 +63,18 @@ class Watchdog extends HandlerAbstract
 //                var_export($this->api->getMe(), true),
 //            ));
 
-            switch ($this->update->objectType()) {
+            if (!\in_array($type, self::PROCESSING_TYPES)) {
+                return;
+            }
+
+            switch ($type) {
                 case "message":
                     $this->processMessage();
                     break;
 
-//            case "my_chat_member":
-//                $this->processChatManipulation();
-//                break;
+                case "my_chat_member":
+                    $this->processChatManipulation();
+                    break;
             }
         } catch (Throwable $exception) {
             $this->log(\sprintf(
@@ -79,6 +85,30 @@ class Watchdog extends HandlerAbstract
                 $exception->getTraceAsString(),
             ));
         }
+
+        $this->saveCache();
+    }
+
+    protected function loadCache(): void
+    {
+        if (\file_exists($this->config['cachePath'])) {
+            $this->cache = require_once $this->config['cachePath'];
+        } else {
+            $this->cache['botId'] = $this->api->getMe()->id;
+            $this->cache['chats'] = [];
+        }
+        $this->loadedCache = $this->cache;
+    }
+
+    protected function saveCache(): void
+    {
+        if ($this->loadedCache !== $this->cache) {
+            \file_put_contents(
+                $this->config['cachePath'],
+                "<?php return " . \var_export($this->cache, true) . ";"
+            );
+            $this->loadedCache = $this->cache;
+        }
     }
 
     protected function processMessage(): void
@@ -88,7 +118,8 @@ class Watchdog extends HandlerAbstract
             return;
         }
 
-        $chat = $this->api->getChat(['chat_id' => $this->update->message->chat->id]);
+        $this->chatId = $this->update->message->chat->id;
+        $chat = $this->api->getChat(['chat_id' => $this->chatId]);
         $this->fillPermissions($chat->permissions, ["can_send_messages"]);
 
 //        $this->log(\sprintf(
@@ -111,14 +142,18 @@ class Watchdog extends HandlerAbstract
         }
     }
 
-//    protected function processChatManipulation(): void
-//    {
-//    }
-
-    protected function processSupergroup(): void
+    protected function processChatManipulation(): void
     {
-        $this->botId = $this->api->getMe()->id;
-        $admins = $this->api->getChatAdministrators(['chat_id' => $this->update->message->chat->id]);
+        if (isset($this->update->my_chat_member->new_chat_member)) {
+            $this->chatId = $this->update->my_chat_member->chat->id;
+            $this->updateChatInfo();
+        }
+    }
+
+    protected function updateChatInfo(): void
+    {
+        $this->cache['chats'][$this->chatId]['admins'] = [];
+        $admins = $this->api->getChatAdministrators(['chat_id' => $this->chatId]);
 
 //        $this->log(\sprintf(
 //            "\$admins:\n%s\n",
@@ -131,11 +166,12 @@ class Watchdog extends HandlerAbstract
 //                    var_export($admin, true),
 //                ));
 
-            if ($admin->user->id !== $this->botId) {
-                $this->admins[$admin->user->id] = "@" . ($admin->user->username ?? $admin->user->first_name);
+            if ($admin->user->id !== $this->cache['botId']) {
                 if ("creator" === $admin->status) {
-                    $this->chatCreatorId = $admin->user->id;
+                    $this->cache['chats'][$this->chatId]['creator'] = $admin->user->id;
                 }
+                $this->cache['chats'][$this->chatId]['admins'][$admin->user->id] =
+                    "@" . ($admin->user->username ?? $admin->user->first_name);
             } else {
 //                $this->log(\sprintf(
 //                    "bot:\n%s\n",
@@ -146,13 +182,21 @@ class Watchdog extends HandlerAbstract
                 $this->fillPermissions($admin, ["can_delete_messages", "can_restrict_members"]);
             }
         }
+    }
+
+    protected function processSupergroup(): void
+    {
 
 //        $this->log(\sprintf(
 //            "\$permissions:\n%s\n",
-//            var_export($this->permissions, true),
+//            var_export($this->cache['permissions'], true),
 //        ));
 
-        if (isset($this->admins[$this->update->message->from->id])) {
+        if (!isset($this->cache['chats'][$this->chatId]['admins'])) {
+            $this->updateChatInfo();
+        }
+
+        if (isset($this->cache['chats'][$this->chatId]['admins'][$this->update->message->from->id])) {
             $this->processMessageFromChatAdmin();
         } else {
             $this->processMessageFromCommonChatUser();
@@ -168,32 +212,27 @@ class Watchdog extends HandlerAbstract
 
     protected function processMessageFromChatAdmin(): void
     {
-        $commandPrefix = $this->config['commandPrefix'];
-        if ($commandPrefix . "ping" === $this->update->message->text) {
-            $scope = json_decode(file_get_contents(__DIR__ . "/../../../composer.json"), true);
-            $this->sendMessage(
-                \str_replace(".", "\\.", \sprintf(
-                    "[%s v%s](%s/tree/%s)",
-                    $scope['description'],
-                    self::VERSION,
-                    $scope['homepage'],
-                    self::VERSION,
-                )),
-                [
-                    'parse_mode' => "MarkdownV2",
-                    'reply_to_message_id' => -1,
-                    'disable_web_page_preview' => true,
-                ],
-            );
-            return;
+        $prefix = $this->config['commandPrefix'];
+        switch ($this->update->message->text) {
+            case $prefix . "ping":
+                $this->sendPong();
+                return;
+
+            case $prefix . "admin":
+                $this->updateChatInfo();
+                $this->sendMessage("Chat admin list updated.");
+                break;
         }
 
-        if (empty($this->permissions['can_restrict_members']) || !isset($this->update->message->reply_to_message)) {
+        if (
+            empty($this->cache['chats'][$this->chatId]['permissions']['can_restrict_members']) ||
+            !isset($this->update->message->reply_to_message)
+        ) {
             return;
         }
 
         $userId = $this->update->message->reply_to_message->from->id;
-        if ($userId === $this->botId || isset($this->admins[$userId])) {
+        if ($userId === $this->cache['botId'] || isset(['chats'][$this->chatId]['admins'][$userId])) {
             $this->sendMessage("Cannot affect admins or bot.");
             return;
         }
@@ -201,8 +240,8 @@ class Watchdog extends HandlerAbstract
         $period = null;
         $commands = ["ban+", "ban", "mute", "woof"];
         foreach ($commands as $command) {
-            if (\str_starts_with($this->update->message->text, "$commandPrefix$command")) {
-                $period = \substr($this->update->message->text, strlen($command) + strlen($commandPrefix));
+            if (\str_starts_with($this->update->message->text, "$prefix$command")) {
+                $period = \substr($this->update->message->text, strlen($command) + strlen($prefix));
                 break;
             }
         }
@@ -277,6 +316,24 @@ class Watchdog extends HandlerAbstract
         $this->sendMessage(\vsprintf($message, $args));
     }
 
+    protected function sendPong(): void
+    {
+        $scope = json_decode(file_get_contents(__DIR__ . "/../../../composer.json"), true);
+        $this->sendMessage(
+            \str_replace(".", "\\.", \sprintf(
+                "[%s v%s](%s/tree/%s)",
+                $scope['description'],
+                self::VERSION,
+                $scope['homepage'],
+                self::VERSION,
+            )),
+            [
+                'parse_mode' => "MarkdownV2",
+                'disable_web_page_preview' => true,
+            ],
+        );
+    }
+
     protected function processMessageFromCommonChatUser(): void
     {
         if (
@@ -285,16 +342,16 @@ class Watchdog extends HandlerAbstract
         ) {
             return;
         }
-        $admins = $this->admins + [$this->botId => true];
+        $admins = $this->cache['chats'][$this->chatId]['admins'] + [$this->cache['botId'] => true];
         if (isset($admins[$this->update->message->reply_to_message->from->id])) {
             $this->sendMessage("Cannot report about admins or bot.");
             return;
         }
 
         // Tag admins.
-        $admins = $this->admins;
-        if (!$this->config['tagChatCreator'] && null !== $this->chatCreatorId) {
-            unset($admins[$this->chatCreatorId]);
+        $admins = $this->cache['chats'][$this->chatId]['admins'];
+        if (!$this->config['tagChatCreator'] && null !== $this->cache['chats'][$this->chatId]['creator']) {
+            unset($admins[$this->cache['chats'][$this->chatId]['creator']]);
         }
         if (\sizeof($admins) > 0) {
             $this->sendMessage(
@@ -311,14 +368,19 @@ class Watchdog extends HandlerAbstract
 
     protected function fillPermissions(mixed $source, array $permissions): void
     {
+//        $this->log(\sprintf(
+//            "fillPermissions():\n%s\n%s\n\n",
+//            var_export($permissions, true),
+//            var_export($source, true),
+//        ));
         foreach ($permissions as $permission) {
-            $this->permissions[$permission] = $source->$permission;
+            $this->cache['chats'][$this->chatId]['permissions'][$permission] = $source->$permission;
         }
     }
 
     protected function checkPermission(string $permission): bool
     {
-        if (empty($this->permissions[$permission])) {
+        if (empty($this->cache['chats'][$this->chatId]['permissions'][$permission])) {
             $this->sendMessage("Not enough permissions.");
             return false;
         }
@@ -328,7 +390,7 @@ class Watchdog extends HandlerAbstract
 
     protected function sendMessage(?string $message = "", ?array $params = []): void
     {
-        if (!empty($this->permissions['can_send_messages'])) {
+        if (!empty($this->cache['chats'][$this->chatId]['permissions']['can_send_messages'])) {
             $params += [
                 'allow_sending_without_reply' => true,
                 'chat_id' => $this->update->message->chat->id,
@@ -357,7 +419,6 @@ class Watchdog extends HandlerAbstract
     protected function affectToSendingMessage(int $untilDate, bool $allow): void
     {
         if ($this->checkPermission("can_restrict_members")) {
-
 //            $this->log(sprintf(
 //                "affectToSendingMessage('%s', %s)",
 //                date("Y-m-d H:i:s", $untilDate),
